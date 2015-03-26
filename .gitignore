@@ -6,4 +6,3 @@ conf/config.properties
 .project
 .classpath
 .settings/
-log/*.*
