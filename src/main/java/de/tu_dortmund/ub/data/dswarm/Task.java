@@ -80,7 +80,7 @@ public class Task implements Callable<String> {
         this.cnt = cnt;
     }
 
-    @Override
+//    @Override
     public String call() {
 
         // init logger
@@ -487,10 +487,15 @@ public class Task implements Callable<String> {
                         jsonReader = Json.createReader(IOUtils.toInputStream(responseJson, "UTF-8"));
                         JsonObject jsonObject = jsonReader.readObject();
 
-                        String nameParam = jsonObject.getString("name");
+                        String nameParam = "unnamed";
+                        String descriptionParam = "unnamed";
+                        try {
+                        	nameParam = jsonObject.getString("name");
+                        	descriptionParam = jsonObject.getString("description");
+                        } 
+                        catch (ClassCastException e) {}
                         logger.info("[" + config.getProperty("service.name") + "] nameParam : " + nameParam);
-                        String descriptionParam = jsonObject.getString("description");
-                        logger.info("[" + config.getProperty("service.name") + "] descriptionParam : " + descriptionParam);
+                    	logger.info("[" + config.getProperty("service.name") + "] descriptionParam : " + descriptionParam);
                         String resourcesParam = jsonObject.getJsonArray("resources").toString();
                         logger.info("[" + config.getProperty("service.name") + "] resourcesParam : " + resourcesParam);
                         String parametersParam = jsonObject.getJsonObject("parameters").toString();
