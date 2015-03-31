@@ -52,6 +52,9 @@ import javax.json.Json;
 import javax.json.JsonArray;
 import javax.json.JsonObject;
 import javax.json.JsonReader;
+
+import org.apache.http.client.methods.HttpPut;
+
 import java.io.*;
 import java.util.Properties;
 import java.util.UUID;
@@ -92,6 +95,9 @@ public class Task implements Callable<String> {
         String dataModelID = config.getProperty("prototype.dataModelID");
         String projectID = config.getProperty("prototype.projectID");
         String outputDataModelID = config.getProperty("prototype.outputDataModelID"); // Internal Data Model BiboDocument
+//      String updateResourceID = config.getProperty("prototype.resourceID"); // the resource ID to update for each uploaded file
+        // use the projects resource as the update-resource for now:
+//        String updateResourceID = null; try {updateResourceID = getProjectResourceID(dataModelID);} catch (Exception e1) {e1.printStackTrace();}
 
         // init process values
         String inputResourceID = null;
@@ -102,6 +108,7 @@ public class Task implements Callable<String> {
         try {
             // build a InputDataModel for the resource
             String inputResourceJson = uploadFileToDSwarm(resource, "resource for project '" + resource, config.getProperty("project.name") + "' - case " + cnt);
+//            String inputResourceJson = uploadFileToDSwarmAndUpdate(updateResourceID, resource, "resource for project '" + resource, config.getProperty("project.name") + "' - case " + cnt);
             JsonReader jsonReader = Json.createReader(IOUtils.toInputStream(inputResourceJson, "UTF-8"));
             inputResourceID = jsonReader.readObject().getString("uuid");
             logger.info("[" + config.getProperty("service.name") + "] inputResourceID = " + inputResourceID);
@@ -137,7 +144,8 @@ public class Task implements Callable<String> {
             }
 
             // cleanup data model and resource in d:swarm
-            cleanup(inputResourceID, inputDataModelID);
+//            cleanup(inputResourceID, inputDataModelID);
+            cleanup(null, inputDataModelID); // don't clean up our updateable-Resource
         }
         catch (Exception e) {
 
@@ -777,6 +785,79 @@ public class Task implements Callable<String> {
             boolean isDeleted = f.delete();
 
             logger.info("[" + config.getProperty("service.name") + "] tmp file '" + file + "' deleted? " + isDeleted);
+        }
+
+        return responseJson;
+    }
+    
+    /**
+     * build a InputDataModel for the resource
+     *
+     * @param filename
+     * @param name
+     * @param description
+     * @return
+     * @throws Exception
+     */
+    private String uploadFileToDSwarmAndUpdate(String resourceUUID, String filename, String name, String description) throws Exception { //
+
+    	if (null == resourceUUID) throw new Exception("ID of the resource to update was null.");
+    	
+        String responseJson = null;
+
+        String file = config.getProperty("resource.watchfolder") + File.separatorChar +  filename;
+
+        // upload
+        CloseableHttpClient httpclient = HttpClients.createDefault();
+
+        try {
+            HttpPut httpPut = new HttpPut(config.getProperty("engine.dswarm.api") + "resources/" + resourceUUID); //
+
+            FileBody fileBody = new FileBody(new File(file));
+            StringBody stringBodyForName = new StringBody(name, ContentType.TEXT_PLAIN);
+            StringBody stringBodyForDescription = new StringBody(description, ContentType.TEXT_PLAIN);
+
+            HttpEntity reqEntity = MultipartEntityBuilder.create()
+                    .addPart("file", fileBody)
+                    .addPart("name", stringBodyForName)
+                    .addPart("description", stringBodyForDescription)
+                    .build();
+
+            httpPut.setEntity(reqEntity);//
+
+            logger.info("[" + config.getProperty("service.name") + "] " + "request : " + httpPut.getRequestLine());//
+
+            CloseableHttpResponse httpResponse = httpclient.execute(httpPut);//
+
+            try {
+                int statusCode = httpResponse.getStatusLine().getStatusCode();
+                HttpEntity httpEntity = httpResponse.getEntity();
+
+                switch (statusCode) {
+
+                    case 201: {
+
+                        logger.info("[" + config.getProperty("service.name") + "] " + statusCode + " : " + httpResponse.getStatusLine().getReasonPhrase());
+                        StringWriter writer = new StringWriter();
+                        IOUtils.copy(httpEntity.getContent(), writer, "UTF-8");
+                        responseJson = writer.toString();
+
+                        logger.info("[" + config.getProperty("service.name") + "] responseJson : " + responseJson);
+
+                        break;
+                    }
+                    default: {
+
+                        logger.error("[" + config.getProperty("service.name") + "] " + statusCode + " : " + httpResponse.getStatusLine().getReasonPhrase());
+                    }
+                }
+
+                EntityUtils.consume(httpEntity);
+            } finally {
+                httpResponse.close();
+            }
+        } finally {
+            httpclient.close();
         }
 
         return responseJson;
