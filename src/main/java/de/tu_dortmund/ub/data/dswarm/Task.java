@@ -97,7 +97,7 @@ public class Task implements Callable<String> {
         String outputDataModelID = config.getProperty("prototype.outputDataModelID"); // Internal Data Model BiboDocument
 //      String updateResourceID = config.getProperty("prototype.resourceID"); // the resource ID to update for each uploaded file
         // use the projects resource as the update-resource for now:
-//        String updateResourceID = null; try {updateResourceID = getProjectResourceID(dataModelID);} catch (Exception e1) {e1.printStackTrace();}
+        String updateResourceID = null; try {updateResourceID = getProjectResourceID(dataModelID);} catch (Exception e1) {e1.printStackTrace();}
 
         // init process values
         String inputResourceID = null;
@@ -107,8 +107,8 @@ public class Task implements Callable<String> {
 
         try {
             // build a InputDataModel for the resource
-            String inputResourceJson = uploadFileToDSwarm(resource, "resource for project '" + resource, config.getProperty("project.name") + "' - case " + cnt);
-//            String inputResourceJson = uploadFileToDSwarmAndUpdate(updateResourceID, resource, "resource for project '" + resource, config.getProperty("project.name") + "' - case " + cnt);
+//            String inputResourceJson = uploadFileToDSwarm(resource, "resource for project '" + resource, config.getProperty("project.name") + "' - case " + cnt);
+            String inputResourceJson = uploadFileToDSwarmAndUpdate(updateResourceID, resource, "resource for project '" + resource, config.getProperty("project.name") + "' - case " + cnt);
             JsonReader jsonReader = Json.createReader(IOUtils.toInputStream(inputResourceJson, "UTF-8"));
             inputResourceID = jsonReader.readObject().getString("uuid");
             logger.info("[" + config.getProperty("service.name") + "] inputResourceID = " + inputResourceID);
@@ -835,7 +835,7 @@ public class Task implements Callable<String> {
 
                 switch (statusCode) {
 
-                    case 201: {
+                    case 200: {
 
                         logger.info("[" + config.getProperty("service.name") + "] " + statusCode + " : " + httpResponse.getStatusLine().getReasonPhrase());
                         StringWriter writer = new StringWriter();
