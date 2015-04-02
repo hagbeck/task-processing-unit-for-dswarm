@@ -101,8 +101,6 @@ public class Task implements Callable<String> {
 
         // init process values
         String inputResourceID = null;
-        String resourceID = null;
-        String inputDataModelID = null;
         String message = null;
 
         try {
@@ -115,37 +113,36 @@ public class Task implements Callable<String> {
 
             if (inputResourceID != null) {
 
-                // get the resource id of the resource for the data model for the the prototype project
-                resourceID = getProjectResourceID(dataModelID);
+                if (updateResourceID != null) {
 
-                if (resourceID != null) {
-                    // get the configurations of the prototype resource and build a data model for the new resource
-                    inputDataModelID = configureDataModel(inputResourceJson, resourceID, "resource for project '" + resource, config.getProperty("project.name") + "' - case " + cnt);
+                	// update the datamodel (will use it's (update) resource)
+                	updateDataModel(dataModelID);
 
-                    if (inputDataModelID != null) {
-                        // configuration and processing of the task
-                        String jsonResponse = executeTask(inputDataModelID, projectID, resourceID, outputDataModelID);
-
-                        if (jsonResponse != null) {
-
-                            if (Boolean.parseBoolean(config.getProperty("results.persistInFolder"))) {
-
-                                // save results in files
-                                FileUtils.writeStringToFile(new File(config.getProperty("results.folder") + File.separatorChar + inputDataModelID + ".json"), jsonResponse);
-
-                                message = "'" + resource + "' transformed. results in '" + config.getProperty("results.folder") + File.separatorChar + inputDataModelID + ".json" + "'";
-                            }
-                        } else {
-
-                            message = "'" + resource + "' not transformed: error in task execution.";
-                        }
-                    }
+                    // don't transform after each ingest
+                    
+//                    if (inputDataModelID != null) {
+//                        // configuration and processing of the task
+//                        String jsonResponse = executeTask(inputDataModelID, projectID, resourceID, outputDataModelID);
+//
+//                        if (jsonResponse != null) {
+//
+//                            if (Boolean.parseBoolean(config.getProperty("results.persistInFolder"))) {
+//
+//                                // save results in files
+//                                FileUtils.writeStringToFile(new File(config.getProperty("results.folder") + File.separatorChar + inputDataModelID + ".json"), jsonResponse);
+//
+//                                message = "'" + resource + "' transformed. results in '" + config.getProperty("results.folder") + File.separatorChar + inputDataModelID + ".json" + "'";
+//                            }
+//                        } else {
+//
+//                            message = "'" + resource + "' not transformed: error in task execution.";
+//                        }
+//                    }
+ 
                 }
             }
 
-            // cleanup data model and resource in d:swarm
-//            cleanup(inputResourceID, inputDataModelID);
-            cleanup(null, inputDataModelID); // don't clean up our updateable-Resource
+            // no need to clean up resources or datamodels anymore, but: TODO: clean the configurations which seem to be created for each update
         }
         catch (Exception e) {
 
@@ -445,100 +442,22 @@ public class Task implements Callable<String> {
     }
 
     /**
-     * get the configurations of the prototype resource and build a data model for the new resource
+     * update the datamodel with ID inputDataModelID
      *
-     * @param inputResourceJson
-     * @param resourceID
-     * @param name
-     * @param description
+     * @param inputDataModelID
      * @return
      * @throws Exception
      */
-    private String configureDataModel(String inputResourceJson, String resourceID, String name, String description) throws Exception {
-
-        String inputDataModelID = null;
-
-        JsonReader jsonReader = Json.createReader(IOUtils.toInputStream(inputResourceJson, "UTF-8"));
-        String inputResourceID = jsonReader.readObject().getString("uuid");
+    private String updateDataModel(String inputDataModelID) throws Exception {
 
         CloseableHttpClient httpclient = HttpClients.createDefault();
+        CloseableHttpResponse httpResponse;
 
-        // Hole die Konfiguration zur Prototyp-Projekt
         try {
+                // Update the existing input Data Model (we are simply using the example data model here ... TODO !)
+                HttpPost httpPost = new HttpPost(config.getProperty("engine.dswarm.api") + "datamodels/" + inputDataModelID + "/data");
 
-            HttpGet httpGet = new HttpGet(config.getProperty("engine.dswarm.api") + "resources/" + resourceID + "/configurations");
-
-            CloseableHttpResponse httpResponse = httpclient.execute(httpGet);
-
-            logger.info("[" + config.getProperty("service.name") + "] " + "request : " + httpGet.getRequestLine());
-
-            String json = "";
-
-            try {
-
-                int statusCode = httpResponse.getStatusLine().getStatusCode();
-                HttpEntity httpEntity = httpResponse.getEntity();
-
-                switch (statusCode) {
-
-                    case 200: {
-
-                        StringWriter writer = new StringWriter();
-                        IOUtils.copy(httpEntity.getContent(), writer, "UTF-8");
-                        String responseJson = writer.toString();
-
-                        logger.info("[" + config.getProperty("service.name") + "] responseJson : " + responseJson);
-
-                        // replace resourceID with inputResourceID
-                        responseJson = responseJson.substring(1, responseJson.length() - 1);
-
-                        jsonReader = Json.createReader(IOUtils.toInputStream(responseJson, "UTF-8"));
-                        JsonObject jsonObject = jsonReader.readObject();
-
-                        String nameParam = "unnamed";
-                        String descriptionParam = "unnamed";
-                        try {
-                        	nameParam = jsonObject.getString("name");
-                        	descriptionParam = jsonObject.getString("description");
-                        } 
-                        catch (ClassCastException e) {}
-                        logger.info("[" + config.getProperty("service.name") + "] nameParam : " + nameParam);
-                    	logger.info("[" + config.getProperty("service.name") + "] descriptionParam : " + descriptionParam);
-                        String resourcesParam = jsonObject.getJsonArray("resources").toString();
-                        logger.info("[" + config.getProperty("service.name") + "] resourcesParam : " + resourcesParam);
-                        String parametersParam = jsonObject.getJsonObject("parameters").toString();
-                        logger.info("[" + config.getProperty("service.name") + "] parametersParam : " + parametersParam);
-
-                        json = "{";
-                        json += "\"uuid\":\"" + UUID.randomUUID() + "\",";
-                        json += "\"name\":\"" + nameParam + "\",";
-                        json += "\"description\":\"" + descriptionParam.replaceAll(resourceID,inputResourceID) + "\",";
-                        json += "\"resources\":" + resourcesParam.replaceAll(resourceID,inputResourceID) + ",";
-                        json += "\"parameters\":" + parametersParam;
-                        json += "}";
-
-                        logger.info("[" + config.getProperty("service.name") + "] json : " + json);
-
-                        break;
-                    }
-                    default: {
-
-                        logger.error("[" + config.getProperty("service.name") + "] " + statusCode + " : " + httpResponse.getStatusLine().getReasonPhrase());
-                    }
-                }
-
-                EntityUtils.consume(httpEntity);
-            } finally {
-                httpResponse.close();
-            }
-
-            if (!json.equals("")) {
-
-                // Konfiguration der neuen Resource: http://129.217.132.83:8080/dmp/resources/{uuid der neuen Ressource}/configurations
-                HttpPost httpPost = new HttpPost(config.getProperty("engine.dswarm.api") + "resources/" + inputResourceID + "/configurations");
-                StringEntity stringEntity = new StringEntity(json, ContentType.create("application/json", Consts.UTF_8));
-                httpPost.setEntity(stringEntity);
-
+                logger.info("[" + config.getProperty("service.name") + "] inputDataModelID : " + inputDataModelID);
                 logger.info("[" + config.getProperty("service.name") + "] " + "request : " + httpPost.getRequestLine());
 
                 httpResponse = httpclient.execute(httpPost);
@@ -546,14 +465,13 @@ public class Task implements Callable<String> {
                 try {
 
                     int statusCode = httpResponse.getStatusLine().getStatusCode();
-                    HttpEntity httpEntity = httpResponse.getEntity();
 
                     switch (statusCode) {
 
-                        case 201: {
+                        case 200: {
 
                             logger.info("[" + config.getProperty("service.name") + "] " + statusCode + " : " + httpResponse.getStatusLine().getReasonPhrase());
-
+                           
                             break;
                         }
                         default: {
@@ -561,60 +479,9 @@ public class Task implements Callable<String> {
                             logger.error("[" + config.getProperty("service.name") + "] " + statusCode + " : " + httpResponse.getStatusLine().getReasonPhrase());
                         }
                     }
-
-                    EntityUtils.consume(httpEntity);
                 } finally {
                     httpResponse.close();
                 }
-
-                // Anlegen eines neuen Data Model: http://129.217.132.83:8080/dmp/datamodels
-                httpPost = new HttpPost(config.getProperty("engine.dswarm.api") + "datamodels");
-
-                String datamodel = "{ " +
-                        "\"name\" : \""+ name + "\", " +
-                        "\"description\" : \"" + description + "\", " +
-                        "\"configuration\" : " + json + ", " +
-                        "\"data_resource\" : " + inputResourceJson.replace("\"configuration\" : []", "\"configuration\" : [" + json + "]") +
-                        " }";
-
-                logger.info("[" + config.getProperty("service.name") + "] datamodel : " + datamodel);
-
-                stringEntity = new StringEntity(datamodel, ContentType.create("application/json", Consts.UTF_8));
-                httpPost.setEntity(stringEntity);
-
-                logger.info("[" + config.getProperty("service.name") + "] " + "request : " + httpPost.getRequestLine());
-
-                httpResponse = httpclient.execute(httpPost);
-
-                try {
-
-                    int statusCode = httpResponse.getStatusLine().getStatusCode();
-                    HttpEntity httpEntity = httpResponse.getEntity();
-
-                    switch (statusCode) {
-
-                        case 201: {
-
-                            logger.info("[" + config.getProperty("service.name") + "] " + statusCode + " : " + httpResponse.getStatusLine().getReasonPhrase());
-
-                            jsonReader = Json.createReader(httpEntity.getContent());
-                            inputDataModelID = jsonReader.readObject().getString("uuid");
-
-                            logger.info("[" + config.getProperty("service.name") + "] inputDataModelID = " + inputDataModelID);
-
-                            break;
-                        }
-                        default: {
-
-                            logger.error("[" + config.getProperty("service.name") + "] " + statusCode + " : " + httpResponse.getStatusLine().getReasonPhrase());
-                        }
-                    }
-
-                    EntityUtils.consume(httpEntity);
-                } finally {
-                    httpResponse.close();
-                }
-            }
         } finally {
             httpclient.close();
         }
@@ -687,109 +554,6 @@ public class Task implements Callable<String> {
         return resourceID;
     }
 
-    /**
-     * build a InputDataModel for the resource
-     *
-     * @param filename
-     * @param name
-     * @param description
-     * @return
-     * @throws Exception
-     */
-    private String uploadFileToDSwarm(String filename, String name, String description) throws Exception {
-
-        String responseJson = null;
-
-        String file = config.getProperty("resource.watchfolder") + File.separatorChar +  filename;
-
-        // ggf. Preprocessing: insert CDATA in XML and write new XML file to tmp folder
-        if (Boolean.parseBoolean(config.getProperty("resource.preprocessing"))) {
-
-            Document document = new SAXBuilder().build(new File(file));
-
-            file = config.getProperty("preprocessing.folder") + File.separatorChar + UUID.randomUUID() + ".xml";
-
-            XMLOutputter out = new XMLOutputter(Format.getPrettyFormat());
-            BufferedWriter bufferedWriter = null;
-            try {
-
-                bufferedWriter = new BufferedWriter(new FileWriter(file));
-
-                out.output(new SAXBuilder().build(new StringReader(XmlTransformer.xmlOutputter(document, config.getProperty("preprocessing.xslt"), null))), bufferedWriter);
-            }
-            finally {
-                if (bufferedWriter != null) {
-                    bufferedWriter.close();
-                }
-            }
-        }
-
-        // upload
-        CloseableHttpClient httpclient = HttpClients.createDefault();
-
-        try {
-            HttpPost httpPost = new HttpPost(config.getProperty("engine.dswarm.api") + "resources/");
-
-            FileBody fileBody = new FileBody(new File(file));
-            StringBody stringBodyForName = new StringBody(name, ContentType.TEXT_PLAIN);
-            StringBody stringBodyForDescription = new StringBody(description, ContentType.TEXT_PLAIN);
-
-            HttpEntity reqEntity = MultipartEntityBuilder.create()
-                    .addPart("file", fileBody)
-                    .addPart("name", stringBodyForName)
-                    .addPart("description", stringBodyForDescription)
-                    .build();
-
-            httpPost.setEntity(reqEntity);
-
-            logger.info("[" + config.getProperty("service.name") + "] " + "request : " + httpPost.getRequestLine());
-
-            CloseableHttpResponse httpResponse = httpclient.execute(httpPost);
-
-            try {
-                int statusCode = httpResponse.getStatusLine().getStatusCode();
-                HttpEntity httpEntity = httpResponse.getEntity();
-
-                switch (statusCode) {
-
-                    case 201: {
-
-                        logger.info("[" + config.getProperty("service.name") + "] " + statusCode + " : " + httpResponse.getStatusLine().getReasonPhrase());
-                        StringWriter writer = new StringWriter();
-                        IOUtils.copy(httpEntity.getContent(), writer, "UTF-8");
-                        responseJson = writer.toString();
-
-                        logger.info("[" + config.getProperty("service.name") + "] responseJson : " + responseJson);
-
-                        break;
-                    }
-                    default: {
-
-                        logger.error("[" + config.getProperty("service.name") + "] " + statusCode + " : " + httpResponse.getStatusLine().getReasonPhrase());
-                    }
-                }
-
-                EntityUtils.consume(httpEntity);
-            } finally {
-                httpResponse.close();
-            }
-        } finally {
-            httpclient.close();
-        }
-
-        // ggf. Löschen des tmp resource file
-        if (Boolean.parseBoolean(config.getProperty("resource.preprocessing"))) {
-
-            File f = new File(file);
-
-            boolean isDeleted = f.delete();
-
-            logger.info("[" + config.getProperty("service.name") + "] tmp file '" + file + "' deleted? " + isDeleted);
-        }
-
-        return responseJson;
-    }
-    
     /**
      * build a InputDataModel for the resource
      *
