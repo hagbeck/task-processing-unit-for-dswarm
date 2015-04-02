@@ -106,7 +106,7 @@ public class Task implements Callable<String> {
         try {
             // build a InputDataModel for the resource
 //            String inputResourceJson = uploadFileToDSwarm(resource, "resource for project '" + resource, config.getProperty("project.name") + "' - case " + cnt);
-            String inputResourceJson = uploadFileToDSwarmAndUpdate(updateResourceID, resource, "resource for project '" + resource, config.getProperty("project.name") + "' - case " + cnt);
+            String inputResourceJson = uploadFileAndUpdateResource(updateResourceID, resource, "resource for project '" + resource, config.getProperty("project.name") + "' - case " + cnt);
             JsonReader jsonReader = Json.createReader(IOUtils.toInputStream(inputResourceJson, "UTF-8"));
             inputResourceID = jsonReader.readObject().getString("uuid");
             logger.info("[" + config.getProperty("service.name") + "] inputResourceID = " + inputResourceID);
@@ -442,7 +442,7 @@ public class Task implements Callable<String> {
     }
 
     /**
-     * update the datamodel with ID inputDataModelID
+     * update the datamodel with the given ID
      *
      * @param inputDataModelID
      * @return
@@ -493,7 +493,7 @@ public class Task implements Callable<String> {
      * get the resource id of the resource for the data model for the the prototype project
      *
      * @param dataModelID
-     * @return
+     * @return resourceID
      * @throws Exception
      */
     private String getProjectResourceID(String dataModelID) throws Exception {
@@ -555,15 +555,16 @@ public class Task implements Callable<String> {
     }
 
     /**
-     * build a InputDataModel for the resource
+     * upload a file and update an existing resource with it
      *
+     * @param resourceUUID
      * @param filename
      * @param name
      * @param description
-     * @return
+     * @return responseJson
      * @throws Exception
      */
-    private String uploadFileToDSwarmAndUpdate(String resourceUUID, String filename, String name, String description) throws Exception { //
+    private String uploadFileAndUpdateResource(String resourceUUID, String filename, String name, String description) throws Exception {
 
     	if (null == resourceUUID) throw new Exception("ID of the resource to update was null.");
     	
@@ -571,11 +572,10 @@ public class Task implements Callable<String> {
 
         String file = config.getProperty("resource.watchfolder") + File.separatorChar +  filename;
 
-        // upload
         CloseableHttpClient httpclient = HttpClients.createDefault();
 
         try {
-            HttpPut httpPut = new HttpPut(config.getProperty("engine.dswarm.api") + "resources/" + resourceUUID); //
+            HttpPut httpPut = new HttpPut(config.getProperty("engine.dswarm.api") + "resources/" + resourceUUID);
 
             FileBody fileBody = new FileBody(new File(file));
             StringBody stringBodyForName = new StringBody(name, ContentType.TEXT_PLAIN);
@@ -587,11 +587,11 @@ public class Task implements Callable<String> {
                     .addPart("description", stringBodyForDescription)
                     .build();
 
-            httpPut.setEntity(reqEntity);//
+            httpPut.setEntity(reqEntity);
 
-            logger.info("[" + config.getProperty("service.name") + "] " + "request : " + httpPut.getRequestLine());//
+            logger.info("[" + config.getProperty("service.name") + "] " + "request : " + httpPut.getRequestLine());
 
-            CloseableHttpResponse httpResponse = httpclient.execute(httpPut);//
+            CloseableHttpResponse httpResponse = httpclient.execute(httpPut);
 
             try {
                 int statusCode = httpResponse.getStatusLine().getStatusCode();
