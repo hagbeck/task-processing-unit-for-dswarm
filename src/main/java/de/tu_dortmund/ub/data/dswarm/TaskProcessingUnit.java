@@ -107,13 +107,14 @@ public class TaskProcessingUnit {
         long global = System.currentTimeMillis();
 
         // run ThreadPool
-        executeTasks(files);
+        executeIngests(files);
+//        executeTasks(files);
 
         logger.info("[" + config.getProperty("service.name") + "] " + "d:swarm tasks executed. (Processing time: " + ((System.currentTimeMillis() - global) / 1000) + " s)");
         System.out.println("[" + config.getProperty("service.name") + "] " + "d:swarm tasks executed. (Processing time: " + ((System.currentTimeMillis() - global) / 1000) + " s)");
     }
 
-    private static void executeTasks(String[] files) throws Exception {
+    private static void executeIngests(String[] files) throws Exception {
 
         // create job list
         LinkedList<Callable<String>> filesToPush = new LinkedList<Callable<String>>();
@@ -122,7 +123,7 @@ public class TaskProcessingUnit {
         for (String file : files) {
 
             cnt++;
-            filesToPush.add(new Task(config, logger, file, cnt));
+            filesToPush.add(new Ingest(config, logger, file, cnt));
         }
 
         // work on jobs
@@ -152,5 +153,45 @@ public class TaskProcessingUnit {
             e.printStackTrace();
         }
     }
+
+	private static void executeTasks(String[] files) throws Exception {
+	
+	    // create job list
+	    LinkedList<Callable<String>> filesToPush = new LinkedList<Callable<String>>();
+	
+	    int cnt = 0;
+	    for (String file : files) {
+	
+	        cnt++;
+	        filesToPush.add(new Task(config, logger, file, cnt));
+	    }
+	
+	    // work on jobs
+	    ThreadPoolExecutor pool = new ThreadPoolExecutor(Integer.parseInt(config.getProperty("engine.threads")), Integer.parseInt(config.getProperty("engine.threads")), 0L, TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>());
+	
+	    try {
+	
+	        List<Future<String>> futureList = pool.invokeAll(filesToPush);
+	
+	        for (Future<String> f : futureList) {
+	
+	            String message = f.get();
+	
+	            logger.info("[" + config.getProperty("service.name") + "] " + message);
+	            System.out.println("[" + config.getProperty("service.name") + "] " + message);
+	
+	        }
+	
+	        pool.shutdown();
+	
+	    } catch (InterruptedException e) {
+	
+	        e.printStackTrace();
+	
+	    } catch (ExecutionException e) {
+	
+	        e.printStackTrace();
+	    }
+	}
 
 }
