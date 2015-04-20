@@ -390,7 +390,7 @@ public class Task implements Callable<String> {
 
             logger.info("[" + config.getProperty("service.name") + "] task : " + task);
 
-            // POST http://129.217.132.83:8080/dmp/tasks/
+            // POST /dmp/tasks/
             HttpPost httpPost = new HttpPost(config.getProperty("engine.dswarm.api") + "tasks?persist=" + config.getProperty("results.persistInDMP"));
             StringEntity stringEntity = new StringEntity(task, ContentType.create("application/json", Consts.UTF_8));
             httpPost.setEntity(stringEntity);
@@ -487,13 +487,41 @@ public class Task implements Callable<String> {
                         jsonReader = Json.createReader(IOUtils.toInputStream(responseJson, "UTF-8"));
                         JsonObject jsonObject = jsonReader.readObject();
 
-                        String nameParam = jsonObject.getString("name");
+                        String nameParam = "";
+                        try {
+                            nameParam = jsonObject.getString("name");
+                        }
+                        catch (Exception e) {
+
+                            // erstmal nix weiter
+                        }
                         logger.info("[" + config.getProperty("service.name") + "] nameParam : " + nameParam);
-                        String descriptionParam = jsonObject.getString("description");
+                        String descriptionParam = "";
+                        try {
+                            descriptionParam = jsonObject.getString("description");
+                        }
+                        catch (Exception e) {
+
+                            // erstmal nix weiter
+                        }
                         logger.info("[" + config.getProperty("service.name") + "] descriptionParam : " + descriptionParam);
-                        String resourcesParam = jsonObject.getJsonArray("resources").toString();
+                        String resourcesParam = "";
+                        try {
+                            resourcesParam = jsonObject.getJsonArray("resources").toString();
+                        }
+                        catch (Exception e) {
+
+                            // erstmal nix weiter
+                        }
                         logger.info("[" + config.getProperty("service.name") + "] resourcesParam : " + resourcesParam);
-                        String parametersParam = jsonObject.getJsonObject("parameters").toString();
+                        String parametersParam = "";
+                        try {
+                            parametersParam = jsonObject.getJsonObject("parameters").toString();
+                        }
+                        catch (Exception e) {
+
+                            // erstmal nix weiter
+                        }
                         logger.info("[" + config.getProperty("service.name") + "] parametersParam : " + parametersParam);
 
                         json = "{";
