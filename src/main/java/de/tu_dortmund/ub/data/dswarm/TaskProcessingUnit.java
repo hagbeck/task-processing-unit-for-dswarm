@@ -38,7 +38,7 @@ import java.util.concurrent.*;
  * Task Processing Unit for d:swarm
  *
  * @author Dipl.-Math. Hans-Georg Becker (M.L.I.S.)
- * @version 2015-03-19
+ * @version 2015-04-20
  *
  */
 public class TaskProcessingUnit {
@@ -90,10 +90,10 @@ public class TaskProcessingUnit {
         // init logger
         PropertyConfigurator.configure(config.getProperty("service.log4j-conf"));
 
-        logger.info("[" + config.getProperty("service.name") + "] " + "Starting 'ExecutionEngine' ...");
+        logger.info("[" + config.getProperty("service.name") + "] " + "Starting 'Task Processing Unit' ...");
         logger.info("[" + config.getProperty("service.name") + "] " + "conf-file = " + conffile);
         logger.info("[" + config.getProperty("service.name") + "] " + "log4j-conf-file = " + config.getProperty("service.log4j-conf"));
-        System.out.println("[" + config.getProperty("service.name") + "] " + "Starting 'ExecutionEngine' ...");
+        System.out.println("[" + config.getProperty("service.name") + "] " + "Starting 'Task Processing Unit' ...");
         System.out.println("[" + config.getProperty("service.name") + "] " + "conf-file = " + conffile);
         System.out.println("[" + config.getProperty("service.name") + "] " + "log4j-conf-file = " + config.getProperty("service.log4j-conf"));
 

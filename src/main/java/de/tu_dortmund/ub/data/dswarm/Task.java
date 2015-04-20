@@ -47,11 +47,16 @@ import org.jdom2.Document;
 import org.jdom2.input.SAXBuilder;
 import org.jdom2.output.Format;
 import org.jdom2.output.XMLOutputter;
+import org.openrdf.model.*;
+import org.openrdf.model.impl.LinkedHashModel;
+import org.openrdf.model.impl.ValueFactoryImpl;
+import org.openrdf.model.vocabulary.RDF;
+import org.openrdf.rio.RDFFormat;
+import org.openrdf.rio.RDFHandlerException;
+import org.openrdf.rio.RDFWriter;
+import org.openrdf.rio.Rio;
 
-import javax.json.Json;
-import javax.json.JsonArray;
-import javax.json.JsonObject;
-import javax.json.JsonReader;
+import javax.json.*;
 import java.io.*;
 import java.util.Properties;
 import java.util.UUID;
@@ -61,7 +66,7 @@ import java.util.concurrent.Callable;
  * Task for Task Processing Unit for d:swarm
  *
  * @author Dipl.-Math. Hans-Georg Becker (M.L.I.S.)
- * @version 2015-03-19
+ * @version 2015-04-20
  *
  */
 public class Task implements Callable<String> {
@@ -123,12 +128,144 @@ public class Task implements Callable<String> {
 
                             if (Boolean.parseBoolean(config.getProperty("results.persistInFolder"))) {
 
-                                // save results in files
-                                FileUtils.writeStringToFile(new File(config.getProperty("results.folder") + File.separatorChar + inputDataModelID + ".json"), jsonResponse);
+                                if (Boolean.parseBoolean(config.getProperty("results.writeDMPJson"))) {
+                                    // save DMP results in files
+                                    FileUtils.writeStringToFile(new File(config.getProperty("results.folder") + File.separatorChar + inputDataModelID + ".json"), jsonResponse);
+                                }
 
-                                message = "'" + resource + "' transformed. results in '" + config.getProperty("results.folder") + File.separatorChar + inputDataModelID + ".json" + "'";
+                                // build rdf graph
+                                ValueFactory factory = ValueFactoryImpl.getInstance();
+
+                                Graph graph = new LinkedHashModel();
+
+                                URI graphUri = factory.createURI(config.getProperty("results.rdf.graph"));
+
+                                URI subject = null;
+                                URI predicate = null;
+                                URI object = null;
+                                Literal literal = null;
+                                Statement statement = null;
+
+                                JsonReader dmpJsonResult = Json.createReader(IOUtils.toInputStream(jsonResponse, "UTF-8"));
+                                JsonArray records = dmpJsonResult.readArray();
+
+                                for (JsonObject record : records.getValuesAs(JsonObject.class)) {
+
+                                    subject = factory.createURI(record.getJsonString("__record_id").toString().replaceAll("\"", ""));
+
+                                    for (JsonObject triple : record.getJsonArray("__record_data").getValuesAs(JsonObject.class)) {
+
+                                        for (String key : triple.keySet()) {
+
+                                            if (key.endsWith("rdf-syntax-ns#type")) {
+                                                predicate = RDF.TYPE;
+                                                object = factory.createURI(triple.getJsonString(key).toString().replaceAll("\"", ""));
+                                                statement = factory.createStatement(subject, predicate, object, graphUri);
+                                                graph.add(statement);
+                                            }
+                                            else {
+
+                                                predicate = factory.createURI(key);
+
+                                                switch (triple.get(key).getValueType().toString()) {
+
+                                                    case "STRING" : {
+
+                                                        try {
+                                                            object = factory.createURI(triple.getJsonString(key).toString().replaceAll("\"", ""));
+                                                            statement = factory.createStatement(subject, predicate, object, graphUri);
+                                                            graph.add(statement);
+                                                        }
+                                                        catch (Exception e) {
+                                                            literal = factory.createLiteral(triple.getJsonString(key).toString().replaceAll("\"",""));
+                                                            statement = factory.createStatement(subject, predicate, literal, graphUri);
+                                                            graph.add(statement);
+                                                        }
+                                                        break;
+                                                    }
+                                                    case "ARRAY" : {
+
+                                                        for (JsonString value : triple.getJsonArray(key).getValuesAs(JsonString.class)) {
+
+                                                            try {
+                                                                object = factory.createURI(value.toString().replaceAll("\"",""));
+                                                                statement = factory.createStatement(subject, predicate, object, graphUri);
+                                                                graph.add(statement);
+                                                            }
+                                                            catch (Exception e) {
+                                                                literal = factory.createLiteral(value.toString().replaceAll("\"",""));
+                                                                statement = factory.createStatement(subject, predicate, literal, graphUri);
+                                                                graph.add(statement);
+                                                            }
+                                                        }
+                                                        break;
+                                                    }
+                                                    default: {
+
+                                                        logger.info("Unhandled ValueType: " + triple.get(key).getValueType());
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                if (graph.size() > 0) {
+                                    // save rdf data as 'results.rdf.format' in 'results.folder'
+                                    RDFFormat format = null;
+                                    switch (config.getProperty("results.rdf.format")) {
+
+                                        case "xml": {
+
+                                            format = RDFFormat.RDFXML;
+                                            break;
+                                        }
+                                        case "nquads": {
+
+                                            format = RDFFormat.NQUADS;
+                                            break;
+                                        }
+                                        case "jsonld": {
+
+                                            format = RDFFormat.JSONLD;
+                                            break;
+                                        }
+                                        case "ttl": {
+
+                                            format = RDFFormat.TURTLE;
+                                            break;
+                                        }
+                                        default: {
+
+                                            format = RDFFormat.RDFXML;
+                                        }
+                                    }
+
+                                    try {
+                                        FileOutputStream out = new FileOutputStream(config.getProperty("results.folder") + File.separatorChar + inputDataModelID + ".rdf." + config.getProperty("results.rdf.format"));
+                                        RDFWriter writer = Rio.createWriter(format, out);
+
+                                        writer.startRDF();
+                                        for (Statement st : graph) {
+                                            writer.handleStatement(st);
+                                        }
+                                        writer.endRDF();
+
+                                        out.close();
+
+                                    } catch (RDFHandlerException | IOException e) {
+                                        e.printStackTrace();
+                                    }
+
+                                    message = "'" + resource + "' transformed. results in '" + config.getProperty("results.folder") + File.separatorChar + inputDataModelID + ".rdf." + config.getProperty("results.rdf.format") + "'";
+                                }
+                                else {
+
+                                    message = "'" + resource + "' transformed but result is empty.";
+                                }
                             }
-                        } else {
+                        }
+                        else {
 
                             message = "'" + resource + "' not transformed: error in task execution.";
                         }
