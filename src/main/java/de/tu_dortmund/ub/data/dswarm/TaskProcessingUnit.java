@@ -37,7 +37,7 @@ import java.util.concurrent.*;
 /**
  * Task Processing Unit for d:swarm
  *
- * @author Dipl.-Math. Hans-Georg Becker (M.L.I.S.)
+ * @author Dipl.-Math. Hans-Georg Becker, M.L.I.S. (UB Dortmund)
  * @version 2015-04-20
  *
  */
@@ -143,13 +143,10 @@ public class TaskProcessingUnit {
 
             pool.shutdown();
 
-        } catch (InterruptedException e) {
+        } catch (InterruptedException | ExecutionException e) {
 
             e.printStackTrace();
 
-        } catch (ExecutionException e) {
-
-            e.printStackTrace();
         }
     }
 
