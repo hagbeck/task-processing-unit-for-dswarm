@@ -371,8 +371,6 @@ public class Task implements Callable<String> {
 
                         String inputResourceID = jsonObject.getJsonObject("data_resource").getString("uuid");
 
-                        //mappings = mappings.replaceAll(resourceID, inputResourceID); // TODO not necessary anymore because og reusing the "old" data model
-
                         logger.info("[" + config.getProperty("service.name") + "] mappings : " + mappings);
 
                         break;
